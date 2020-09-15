@@ -31,6 +31,16 @@ from .util import me
 
 
 #-----------------------------------------------------------------------------
+# Data Ingest
+#-----------------------------------------------------------------------------
+def read_selected_columns(file, exclude, **kwargs) -> pd.DataFrame():
+    """Reads a CSV file with the exclusion of specified columns."""
+    columns = pd.read_csv(file, nrows=0)
+    usecols = [col for col in columns if col not in exclude]
+    return pd.read_csv(file, usecols=usecols, **kwargs)
+
+
+#-----------------------------------------------------------------------------
 # Data Overview Functions
 #-----------------------------------------------------------------------------
 def mem(df, verbose=False):
@@ -52,30 +62,37 @@ def topseries(series, n=7):
     )
     return topn
 
+
 def top_items(df, col, n=1) -> list:
-    """Returns top `n` items from `col` in a `df`."""
+    """Returns cardinality and top `n` items from `col` in a `df`."""
     rel = 100 / len(df)
-    keys = df[col].value_counts(dropna=False).index[:n]
-    abss = df[col].value_counts(dropna=False).values[:n]
-    pcts = df[col].value_counts(dropna=False).values[:n] * rel
-    return [[x, y, round(z, 2)] for x, y, z in zip(keys, abss, pcts)]
+    counts = df[col].value_counts(dropna=False)
+    c = len(counts)
+    keys = counts.index[:n]
+    vals = counts.values[:n]
+    pcts = counts.values[:n] * rel
+    return c, [[x, y, round(z, 1)] for x, y, z in zip(keys, vals, pcts)]
 
 
 def ntop(df, n=3) -> pd.DataFrame:
     """Overview of top `n` items in all columns of a `df`."""
     df = df.loc[:, ~df.columns.duplicated()]
-    dftop = df.head(0).transpose()
-    dftop['coverage'] = [''] * len(dftop)
-    dftop['top_items'] = [''] * len(dftop)
+    dftop = pd.DataFrame(
+        index=df.columns,
+        columns=['cardinality','top_items','coverage'],
+    )
     for col in df.columns:
         top = top_items(df, col, n=n)
-        dftop.loc[col, 'coverage'] = sum([i[2] for i in top])
-        dftop.loc[col, 'top_items'] = top
+        dftop.loc[col, 'cardinality'] = top[0]
+        dftop.loc[col, 'coverage'] = sum([i[2] for i in top[1]])
+        dftop.loc[col, 'top_items'] = top[1]
     return dftop
 
 
 class Counts:
-    """COUNT ... GROUP BY on every column of a large dataset"""
+    """MapReduce implementation for COUNT ... GROUP BY on big data.
+    
+    Returns CGB and top ``n`` values from every column."""
     def __init__(self, file, ddl_file, n_cols=None, n_top=10):
         self.file = file
         self.columns = self._get_columns_from_ddl(ddl_file)
@@ -215,10 +232,10 @@ def gresample(df, gb: list, dt: str, period: str, ag: dict):
 
             gresample(
                 df,
-                gb = ['State','MBOLabel'],
-                dt = 'DischargeDateID',
+                gb = ['State','City'],
+                dt = 'Day',
                 period = '7D',
-                ag = {'EncounterID': lambda x: len(np.unique(x))}
+                ag = {'EventID': lambda x: len(np.unique(x))}
             )
     """
     
