@@ -76,12 +76,15 @@
 <body>
 
 {{ header }}
+
+{{ content }}
+
 <table class="{{ table_class }}" id="{{ table_id }}">
 {{ table_html }}
 </table>
+
 {{ footer }}
 
-{{ content }}
 <script>
     $(document).ready(function() {
         $('#{{ table_id }} tfoot th').each( function () {
