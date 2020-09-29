@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import re
 
-# PyCSH imports
+# Lucid imports
 from .util import me
 
 
