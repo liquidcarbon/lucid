@@ -18,7 +18,7 @@ _l = logging.getLogger(__name__)
 
 # Bokeh imports
 from bokeh.colors import RGB
-from bokeh.io import curdoc, output_file 
+from bokeh.io import curdoc, output_file, show
 from bokeh.models import ColorBar, LinearColorMapper
 from bokeh.models import ColumnDataSource, HoverTool, Label, LabelSet
 from bokeh.models import BasicTicker, PrintfTickFormatter, NumeralTickFormatter
@@ -45,7 +45,7 @@ theme1 = {'attrs': {
     },
 
     'Title': {
-        'text_font_size': '18pt',
+        'text_font_size': '16pt',
         'text_font': 'Segoe UI'
     },
 
@@ -58,7 +58,7 @@ theme1 = {'attrs': {
         'axis_label_text_font_size': '14pt',
         'axis_label_text_font': 'Segoe UI',
     },
-    
+
     'Legend': {
         'background_fill_alpha': 0.4,
     }
@@ -120,24 +120,31 @@ fill_hatch = {
 
 class TrueFalsePlot:
     """A chart for highlighting boolean relationships.
-    
+
     Requires a stacked dataset with at least three columns:
         ``['rows','cols','boolean']``
     """
 
-    def __init__(self, df, plot=True, title='True-False Plot'):
-        colors = ['purple', 'gold']
+    def __init__(self, df, plot=True,
+                 colors=['seagreen', 'maroon'], **kwargs):
+
         mapper = LinearColorMapper(palette=colors, low=0, high=1)
 
+        fig_args = {
+            'title': 'True-False Plot',
+            'plot_width': 960,
+            'plot_height': 720,
+            'tooltips': [('','@cols @ @rows')],
+            'x_range': df.cols.unique(),
+            'y_range': df.rows.unique(),
+            'x_axis_location': 'above',
+            'y_axis_location': 'right',
+            'toolbar_location': None,
+        }
+        fig_args.update(**kwargs)
+
         p = figure(
-            title=title,
-            plot_width=600, plot_height=400,
-            x_range=df.cols.unique(),
-            y_range=df.rows.unique(),
-            x_axis_location='above',
-            y_axis_location='right',
-            toolbar_location=None,
-            tooltips=[('','@cols @ @rows')]
+            **fig_args,
         )
 
         p.grid.grid_line_color = None
@@ -145,8 +152,8 @@ class TrueFalsePlot:
         p.axis.major_tick_line_color = None
         p.axis.major_label_standoff = 0
         p.xaxis.major_label_standoff = 0
-        p.xaxis.major_label_text_font_size = '11px'
-        p.yaxis.major_label_text_font_size = '14px'
+        p.xaxis.major_label_text_font_size = '12px'
+        p.yaxis.major_label_text_font_size = '12px'
         p.xaxis.major_label_orientation = 3.14 / 3
 
         p.rect(
@@ -155,11 +162,11 @@ class TrueFalsePlot:
             y='rows',
             width=1, height=1,
             fill_color={'field': 'boolean', 'transform': mapper},
+            fill_alpha=0.8,
             line_color='white', line_width=1,
         )
 
         self.p = p
         if plot:
             show(p)
-    return
-
+        return

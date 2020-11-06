@@ -9,10 +9,11 @@ import sys
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 from . import aws
-from . import db
+# from . import db
 from . import df
 from . import io
 from . import util
+from . import viz
 
 #-----------------------------------------------------------------------------
 # Boilerplate for Notebooks

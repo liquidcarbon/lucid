@@ -47,10 +47,13 @@ WEBCONF = MattrD({
     }
 })
 
+HOMEDIR=os.environ['HOME']
 WEBPORT = 8080
 WEBSERVER = f'{IP}:{WEBPORT}/'
 WEBTABLES_URL_JUPYTER = True  # display URL of published webtables in Jupyter
-WWWFOLDER = f'/home/{os.getlogin()}/www/'  # root folder of the webserver
+WWWFOLDER = f'{HOMEDIR}/www/'  # root folder of the webserver
+if not os.path.exists(WWWFOLDER):
+    os.mkdir(WWWFOLDER)
 
 #-----------------------------------------------------------------------------
 # Reading/Writing Excel
@@ -76,10 +79,10 @@ def xlsave(output_file, frames, sheets, **kwargs):
         :frames: one DataFrames or a list of DataFrames
         :sheets: one sheet name or a list of sheet names
         :kwargs: keyword arguments for ``pd.DataFrame.to_excel()``
-    
+
     :Usage:
         ::
-            
+
             # single dataframe and sheet
             .io.xlsave('myReport.xlsx', df, 'raw_data', index=False)
             # multiple dataframes and sheets:
@@ -117,11 +120,11 @@ def xlsave(output_file, frames, sheets, **kwargs):
 
 def webtable(df, file, **kwargs):
     """Saves DataFrame as a web table.
-    
+
     :Args:
         :df: DataFrame
         :file: output file
-    
+
     :Kwargs:
         :j2template: Jinja2 template (defaults to ``j2/dt_basic.j2.html``)
         :wwwfolder: destination folder (defaults to ``~/www/``)
@@ -174,7 +177,7 @@ def webtable(df, file, **kwargs):
             index=False,
         )
         os.chmod(html_params['wwwfolder']+jsonfile, 0o666)
-    
+
     # for regular tables we also need <td>'s
     else:
         trtd = re.split('</?tbody>\n', df.to_html(index=False))[1]
@@ -199,7 +202,7 @@ def _make_j2html_basic(j2, file):
             f.write(outputText)
         os.chmod(j2['wwwfolder']+file, 0o666)
         _l.info('%s published page %s' % (me(), file))
-           
+
         if j2['showurl']:
             _jupyter_message(j2, file)
     except Exception as e:
