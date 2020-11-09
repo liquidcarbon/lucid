@@ -48,7 +48,7 @@ def agg_by_state(df):
 
     agg = df.groupby(
         ['Province_State']
-    )[df.columns[list(df.columns).index('2/13/20'):]].sum().T
+    )[df.columns[list(df.columns).index('2/10/20'):]].sum().T
     agg.columns.name = ''
     agg.index = pd.DatetimeIndex(agg.index)
     agg = agg.resample('7D').mean().round(0).astype(int)
