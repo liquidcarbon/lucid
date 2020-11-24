@@ -1,7 +1,7 @@
 # lucid/io.py
 
 __doc__ = """
-Input-Output (IO) functions for working with files and bytestreams.
+Input-Output (IO) functions for working with files and streams.
 """
 
 #-----------------------------------------------------------------------------
@@ -29,6 +29,7 @@ from .util import MattrD, me, tnow
 #-----------------------------------------------------------------------------
 # Globals & Constants
 #-----------------------------------------------------------------------------
+
 IP = check_output(['hostname', '-i']).decode('utf-8')[:-1]
 J2_FOLDER = os.path.abspath('j2/')
 J2_DT_BASIC = 'dt_basic.j2.html'  # basic DataTables template
@@ -54,6 +55,7 @@ WEBTABLES_URL_JUPYTER = True  # display URL of published webtables in Jupyter
 WWWFOLDER = f'{HOMEDIR}/www/'  # root folder of the webserver
 if not os.path.exists(WWWFOLDER):
     os.mkdir(WWWFOLDER)
+
 
 #-----------------------------------------------------------------------------
 # Reading/Writing Excel
@@ -224,3 +226,60 @@ def _jupyter_message(j2, file):
         f"""Saved as <a href="http://{WEBSERVER}{file}", target=_blank>
             {full_path}</a> \t size: {size} B"""))
     return
+
+
+#-----------------------------------------------------------------------------
+# Reading/Writing Files from Cloud Storage
+#-----------------------------------------------------------------------------
+
+def save(stream: Response, outfile: str) -> None:
+    """Saves to disk."""
+
+    check_stream(stream)
+    
+    with open(outfile, 'wb') as f:
+        f.write(stream.content)
+    _l.info(f'saved {len(stream.content)} bytes to {outfile}')
+    return None
+
+
+def gunzip_save(stream: Response, outfile: str) -> None:
+    """Unzips and saves to disk."""
+
+    check_stream(stream)
+    check_stream_is_gzip(stream)
+
+    dec = zlib.decompressobj(32 + zlib.MAX_WBITS)  # skipping gzip header
+    f = open(outfile, 'wb')
+
+    try:
+        for chunk in stream.iter_content(chunk_size=2**18):
+            s = dec.decompress(chunk)
+            f.write(s)
+        _l.info(f'saved {f.tell()} bytes to {outfile}')
+    except StreamConsumedError:
+        _l.error('stream consumed, please request again')
+    except Exception as e:
+        _l.error(f'invalid gzip file: {e}')
+    f.close()
+    return None
+
+
+#-----------------------------------------------------------------------------
+# Utility Functions
+#-----------------------------------------------------------------------------
+
+def check_stream(stream: Response) -> None:
+    try:
+        assert stream.status_code == 200
+    except AssertionError:
+        _l.error('bad stream')
+    return None
+
+
+def check_stream_is_gzip(stream: Response) -> None:
+    try:
+        assert stream.headers['Content-Type'] == 'application/x-gzip'
+    except AssertionError:
+        _l.error('not a gzip')
+    return None
