@@ -73,6 +73,33 @@ def runquery(query, **kwargs) -> bool:
         return True
 
 
+def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
+    """Returns COUNT(1)...GROUP BY on ``cols`` (one or more, in SQL syntax).
+
+    """
+
+    sql_params = {
+        'cols': cols,
+        'table': table,
+        'print': False,
+        'run': True,
+        'where': '1=1',
+    }
+    sql_params.update(**kwargs)
+
+    q = '''
+    SELECT
+        {cols},
+        COUNT(1) AS count
+    FROM {table}
+    WHERE {where}
+    GROUP BY {cols}
+    ORDER BY count DESC
+    '''.format(**sql_params)
+    df = sq(q, conn)
+    return df
+
+
 def info_schema(conn, db, **kwargs) -> pd.DataFrame:
     """Retrieves information schema for a database.
 
