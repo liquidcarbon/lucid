@@ -25,20 +25,22 @@ from .util import me
 # Globals & Constants
 #-----------------------------------------------------------------------------
 
-sql_status_msg = '{0} SQL response: {1[0]} rows x {1[1]} cols'
+NULL_VALUES = [None, np.nan, 'NULL', 'none']
+SQL_STATUS_MSG = '{0} SQL response: {1[0]} rows x {1[1]} cols'
 
 
 #-----------------------------------------------------------------------------
 # Generic SQL queries
 #-----------------------------------------------------------------------------
 
-def sq(q, conn):
+def sq(q, conn, log=True):
     """Runs a simple SQL query."""
 
     try:
         df = pd.read_sql(q, conn)
         clean_column_names(df)
-        _l.info(sql_status_msg.format(me(), df.shape))
+        if log:
+            _l.info(SQL_STATUS_MSG.format(me(), df.shape))
         return df
     except Exception as e:
         _l.error('SQL Error: {}'.format(e))
@@ -80,6 +82,7 @@ def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
 
     sql_params = {
         'cols': cols,
+        'log': True,
         'table': table,
         'print': False,
         'run': True,
@@ -96,7 +99,7 @@ def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
     GROUP BY {cols}
     ORDER BY count DESC
     '''.format(**sql_params)
-    df = sq(q, conn)
+    df = sq(q, conn, log=sql_params['log'])
     return df
 
 
@@ -130,7 +133,7 @@ def info_schema(conn, db, **kwargs) -> pd.DataFrame:
         df = pd.read_sql(q, conn)
         clean_column_names(df)
 
-        _l.info(sql_status_msg.format(me(), df.shape))
+        _l.info(SQL_STATUS_MSG.format(me(), df.shape))
         return df
     except Exception as e:
         _l.error('SQL Error: {}'.format(e))
@@ -138,7 +141,7 @@ def info_schema(conn, db, **kwargs) -> pd.DataFrame:
 
 
 def schema_walk(conn, db, schema) -> pd.DataFrame:
-    """Row and column counts for every table in schema."""
+    """Returns row and column counts for every table in schema."""
 
     output_cols = {
         'table': str,
@@ -156,10 +159,9 @@ def schema_walk(conn, db, schema) -> pd.DataFrame:
         )
         for table in tables['table_name']:
             t = f'{schema}.{table}'
-            # _l.debug(f'checking table {t}...\r')
-            n_rows = pd.read_sql(f'SELECT COUNT(1) FROM {t}', conn).iat[0,0]
-            columns = pd.read_sql(f'SELECT * FROM {t} LIMIT 0', conn)
-            clean_column_names(columns)
+            # _l.debug(f'checking table {t}...')
+            n_rows = sq(f'SELECT COUNT(1) FROM {t}', conn, log=False).iat[0,0]
+            columns = sq(f'SELECT * FROM {t} LIMIT 0', conn, log=False)
             n_cols = len(columns.columns)
             cols = ', '.join(columns.columns)[:256]+'...'
             table_info = [table, n_rows, n_cols, cols]
@@ -168,6 +170,65 @@ def schema_walk(conn, db, schema) -> pd.DataFrame:
     except Exception as e:
         _l.error('SQL Error: {}'.format(e))
         return
+
+
+def table_walk(conn, table, n=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
+    """Returns COUNT(1)...GROUP BY, cardinality, and top ``n`` values
+    for every column in a table.
+
+    Optionally includes column combinations (in SQL syntax).
+    Optionally excludes columns.
+    Optionally encrypts values (e.g. PII/PHI).
+    """
+
+    output_cols = {
+        'table': str,
+        'column(s)': str,
+        'cardinality': int,
+    }
+    df = pd.DataFrame(
+        columns=list(output_cols.keys()) + [f'top{i+1}' for i in range(n)]
+    )
+
+    _l.info(f'processing table {table} ...')
+    try:
+        columns = list(
+            sq(f'SELECT * FROM {table} LIMIT 0', conn, log=False)
+        )
+        cgb_columns = columns + comb
+        for c in cgb_columns:
+            _l.debug(f'checking column(s) {c}...')
+            if c not in excl:  # excluding specific columns
+                counts = cgb(conn, table, c, log=False)
+                if counts is None:
+                    continue
+                card = len(counts)
+                col_info = [table, c, card]
+            else:
+                df.loc[len(df)] = [table, c] + ['excluded']*(n+1)
+                continue
+
+            n_rows = counts['count'].sum()
+            for i in range(n):
+                try:
+                    value = counts.iat[i, 0]
+                    if c in encr:  # encrypting non-NULLs in specific columns
+                        if value not in NULL_VALUES:
+                            value = 'encrypted'
+                    col_info.append((
+                        value,
+                        counts.iat[i,-1],
+                        round(counts.iat[i,-1]/n_rows*100, 1)
+                    ))
+                except IndexError:
+                    col_info.append(None)
+            df.loc[len(df)] = col_info
+        _l.info(f'completed table {table}')
+        return df.astype(output_cols, errors='ignore')
+    except Exception as e:
+        _l.error('Error: {}'.format(e))
+        return
+
 
 #-----------------------------------------------------------------------------
 # Data Cleaning
