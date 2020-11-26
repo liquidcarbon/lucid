@@ -295,7 +295,7 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         columns = list(
             sq(f'SELECT * FROM {table} LIMIT 0', conn, log=False)
         )
-        cgb_columns = comb #columns + comb
+        cgb_columns = columns + comb
         for col in cgb_columns:
             r, c, n = rcn(conn, table, col, log=None)
             col_info = [table, col, c, n]
