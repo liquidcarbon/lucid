@@ -295,18 +295,22 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         columns = list(
             sq(f'SELECT * FROM {table} LIMIT 0', conn, log=False)
         )
-        cgb_columns = columns + comb
+        cgb_columns = comb #columns + comb
         for col in cgb_columns:
             r, c, n = rcn(conn, table, col, log=None)
             col_info = [table, col, c, n]
             _l.debug(f'checking column(s) {col}: rcn = {r},{c},{n}')
 
-            # excluding big columns with high cardinality
-            if (c in excl) or ((c/r > 0.9) and (r > 100_000)):
+            # excluding big columns with high relative cardinality
+            if type(c) == tuple:
+                rc = c[0]/r
+            else:
+                rc = c/r
+            if (c in excl) or ((rc > 0.9) and (r > 100_000)):
                 df.loc[len(df)] = col_info + ['excluded']*x
                 continue
             else:
-                counts = cgb(conn, table, col, log=False, limit=999)
+                counts = cgb(conn, table, col, log=False, limit=100)
                 if counts is None:
                     continue  # ignore entirely if COUNT...GROUP BY fails
 
@@ -329,6 +333,7 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         return df.fillna('').astype(output_cols, errors='ignore')
     except Exception as e:
         _l.error('Error: {}'.format(e))
+        raise(e)
         return
 
 
