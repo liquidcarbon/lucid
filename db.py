@@ -108,11 +108,11 @@ def cd(conn, table, cols, **kwargs):
       COUNT(*) as distinct
     FROM cd
     '''.format(**sql_params)
-    df = sq(q, conn, log=sql_params['log']).fillna(0)
+    df = sq(q, conn, log=sql_params['log'])
     if df is None:
         return -1, -1
     else:
-        return df.iat[0,0], df.iat[0,1]
+        return df.fillna(0).iat[0,0], df.iat[0,1]
 
 
 def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
@@ -177,8 +177,8 @@ def cn(conn, table, cols, where='1=1', **kwargs) -> pd.DataFrame:
     return df
 
 
-def rcn(conn, table, col, **kwargs) -> pd.DataFrame:
-    """Returns number of Rows, Cardinality, and number of NULLs in a ``col``.
+def rcn(conn, table, cols, **kwargs) -> pd.DataFrame:
+    """Returns number of Rows, Cardinality, and number of NULLs in ``cols``.
 
     Optional ``where`` clauses accepted.
     NULL is included in unique values count.
@@ -189,46 +189,14 @@ def rcn(conn, table, col, **kwargs) -> pd.DataFrame:
         * (-1, 0, 0) if query fails
     """
 
-    sql_params = {
-        'col': col,
-        'log': True,
-        'print': False,
-        'run': True,
-        'table': table,
-        'where': '1=1',
-    }
-    sql_params.update(**kwargs)
-
-    q = '''
-    SELECT
-        CASE
-            WHEN {col} IS NULL THEN 1
-            ELSE 0
-        END AS is_null,
-        COUNT(DISTINCT {col}) AS distinct,
-        COUNT(1) AS count
-    FROM {table}
-    GROUP BY
-        CASE
-            WHEN {col} IS NULL THEN 1
-            ELSE 0
-        END
-    ORDER BY is_null
-    '''.format(**sql_params)
-
-    df = sq(q, conn, log=sql_params['log'])
-    if df is None:
-        return -1, 0, 0
-
-    if len(df) == 1:
-        rows = df.loc[0, 'count']
-        cardinality = df.loc[0, 'distinct']
-        nulls = 0
+    r, c = cd(conn, table, cols, **kwargs)
+    nulls = cn(conn, table, cols, **kwargs)
+    if nulls.loc['count','all_null'] == nulls.loc['count','any_null']:
+        n = nulls.iat[0,0]
     else:
-        rows = df['count'].sum()
-        cardinality = df.loc[0, 'distinct'] + 1
-        nulls = df.loc[1, 'count']
-    return rows, cardinality, nulls
+        c = (c, nulls.loc['distinct','any_null'])
+        n = (nulls.loc['count','all_null'], nulls.loc['count','any_null'])
+    return r, c, n
 
 
 def info_schema(conn, db, **kwargs) -> pd.DataFrame:
@@ -330,21 +298,17 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         cgb_columns = columns + comb
         for col in cgb_columns:
             r, c, n = rcn(conn, table, col, log=None)
+            col_info = [table, col, c, n]
             _l.debug(f'checking column(s) {col}: rcn = {r},{c},{n}')
 
             # excluding big columns with high cardinality
             if (c in excl) or ((c/r > 0.9) and (r > 100_000)):
-                df.loc[len(df)] = [table, col, c, n] + ['excluded']*x
+                df.loc[len(df)] = col_info + ['excluded']*x
                 continue
             else:
-                counts = cgb(conn, table, col, log=False)
+                counts = cgb(conn, table, col, log=False, limit=999)
                 if counts is None:
                     continue  # ignore entirely if COUNT...GROUP BY fails
-                if r == -1:  # fill in for multi-column RCN
-                    r, c = counts['count'].sum()
-                    c = len(counts)
-                    n = counts.loc[counts.isna().any(axis=1), 'count'].sum()
-                col_info = [table, col, c, n]
 
             for i in range(x):
                 try:
