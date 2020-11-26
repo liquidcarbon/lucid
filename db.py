@@ -43,7 +43,8 @@ def sq(q, conn, log=True):
             _l.info(SQL_STATUS_MSG.format(me(), df.shape))
         return df
     except Exception as e:
-        _l.error('SQL Error: {}'.format(e))
+        if log is not None:
+            _l.error('SQL Error: {}'.format(e))
         return
 
 def runquery(query, **kwargs) -> bool:
@@ -75,9 +76,12 @@ def runquery(query, **kwargs) -> bool:
         return True
 
 
-def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
-    """Returns COUNT(1)...GROUP BY on ``cols`` (one or more, in SQL syntax).
+def cd(conn, table, cols, **kwargs):
+    """Returns COUNT(DISTINCT) on ``cols`` (one or more, in SQL syntax).
 
+    :Returns:
+        * (count, distinct) if query succeeds
+        * (-1, -1) if query fails
     """
 
     sql_params = {
@@ -91,6 +95,43 @@ def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
     sql_params.update(**kwargs)
 
     q = '''
+    WITH cd AS (
+        SELECT
+            {cols},
+            COUNT(1) AS count
+        FROM {table}
+        WHERE {where}
+        GROUP BY {cols}
+    )
+    SELECT
+      SUM(count) as count,
+      COUNT(*) as distinct
+    FROM cd
+    '''.format(**sql_params)
+    df = sq(q, conn, log=sql_params['log']).fillna(0)
+    if df is None:
+        return -1, -1
+    else:
+        return df.iat[0,0], df.iat[0,1]
+
+
+def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
+    """Returns COUNT(1)...GROUP BY on ``cols`` (one or more, in SQL syntax).
+
+    """
+
+    sql_params = {
+        'cols': cols,
+        'log': True,
+        'table': table,
+        'print': False,
+        'run': True,
+        'where': '1=1',
+        'limit': 9_999_999,
+    }
+    sql_params.update(**kwargs)
+
+    q = '''
     SELECT
         {cols},
         COUNT(1) AS count
@@ -98,9 +139,96 @@ def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
     WHERE {where}
     GROUP BY {cols}
     ORDER BY count DESC
+    LIMIT {limit}
     '''.format(**sql_params)
     df = sq(q, conn, log=sql_params['log'])
     return df
+
+
+def cn(conn, table, cols, where='1=1', **kwargs) -> pd.DataFrame:
+    """Returns COUNT of NULLS in ``cols`` (one or more, in SQL syntax).
+
+    :Returns:
+        pd.DataFrame
+    """
+
+    split = cols.split(',')
+
+    all_where = f"{' IS NULL AND '.join(split)} IS NULL AND ({where})"
+    all_null = cd(
+        conn, table, cols,
+        where=all_where,
+        log=None,
+    )
+
+    any_where = f"{' IS NULL OR '.join(split)} IS NULL AND ({where})"
+    any_null = cd(
+        conn, table, cols,
+        where=any_where,
+        log=None,
+    )
+
+    df = pd.DataFrame(
+        index=['count', 'distinct'],
+        data={
+            'all_null': all_null,
+            'any_null': any_null,
+    })
+    return df
+
+
+def rcn(conn, table, col, **kwargs) -> pd.DataFrame:
+    """Returns number of Rows, Cardinality, and number of NULLs in a ``col``.
+
+    Optional ``where`` clauses accepted.
+    NULL is included in unique values count.
+    Mnemonic: RacCooN
+
+    :Returns:
+        * (rows, cardinality, nulls) if query succeeds
+        * (-1, 0, 0) if query fails
+    """
+
+    sql_params = {
+        'col': col,
+        'log': True,
+        'print': False,
+        'run': True,
+        'table': table,
+        'where': '1=1',
+    }
+    sql_params.update(**kwargs)
+
+    q = '''
+    SELECT
+        CASE
+            WHEN {col} IS NULL THEN 1
+            ELSE 0
+        END AS is_null,
+        COUNT(DISTINCT {col}) AS distinct,
+        COUNT(1) AS count
+    FROM {table}
+    GROUP BY
+        CASE
+            WHEN {col} IS NULL THEN 1
+            ELSE 0
+        END
+    ORDER BY is_null
+    '''.format(**sql_params)
+
+    df = sq(q, conn, log=sql_params['log'])
+    if df is None:
+        return -1, 0, 0
+
+    if len(df) == 1:
+        rows = df.loc[0, 'count']
+        cardinality = df.loc[0, 'distinct']
+        nulls = 0
+    else:
+        rows = df['count'].sum()
+        cardinality = df.loc[0, 'distinct'] + 1
+        nulls = df.loc[1, 'count']
+    return rows, cardinality, nulls
 
 
 def info_schema(conn, db, **kwargs) -> pd.DataFrame:
@@ -172,9 +300,11 @@ def schema_walk(conn, db, schema) -> pd.DataFrame:
         return
 
 
-def table_walk(conn, table, n=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
-    """Returns COUNT(1)...GROUP BY, cardinality, and top ``n`` values
-    for every column in a table.
+def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
+    """Returns an overview of the table.
+
+    Includes COUNT...GROUP BY, cardinality, number of NULLs,
+    and top ``x`` values for every column in a table.
 
     Optionally includes column combinations (in SQL syntax).
     Optionally excludes columns.
@@ -185,46 +315,54 @@ def table_walk(conn, table, n=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         'table': str,
         'column(s)': str,
         'cardinality': int,
+        'nulls': int,
     }
     df = pd.DataFrame(
-        columns=list(output_cols.keys()) + [f'top{i+1}' for i in range(n)]
+        columns=list(output_cols.keys()) + [f'top{i+1}' for i in range(x)]
     )
 
     _l.info(f'processing table {table} ...')
+
     try:
         columns = list(
             sq(f'SELECT * FROM {table} LIMIT 0', conn, log=False)
         )
         cgb_columns = columns + comb
-        for c in cgb_columns:
-            _l.debug(f'checking column(s) {c}...')
-            if c not in excl:  # excluding specific columns
-                counts = cgb(conn, table, c, log=False)
-                if counts is None:
-                    continue
-                card = len(counts)
-                col_info = [table, c, card]
-            else:
-                df.loc[len(df)] = [table, c] + ['excluded']*(n+1)
-                continue
+        for col in cgb_columns:
+            r, c, n = rcn(conn, table, col, log=None)
+            _l.debug(f'checking column(s) {col}: rcn = {r},{c},{n}')
 
-            n_rows = counts['count'].sum()
-            for i in range(n):
+            # excluding big columns with high cardinality
+            if (c in excl) or ((c/r > 0.9) and (r > 100_000)):
+                df.loc[len(df)] = [table, col, c, n] + ['excluded']*x
+                continue
+            else:
+                counts = cgb(conn, table, col, log=False)
+                if counts is None:
+                    continue  # ignore entirely if COUNT...GROUP BY fails
+                if r == -1:  # fill in for multi-column RCN
+                    r, c = counts['count'].sum()
+                    c = len(counts)
+                    n = counts.loc[counts.isna().any(axis=1), 'count'].sum()
+                col_info = [table, col, c, n]
+
+            for i in range(x):
                 try:
                     value = counts.iat[i, 0]
-                    if c in encr:  # encrypting non-NULLs in specific columns
+
+                    if col in encr:  # encrypting non-NULLs in specific columns
                         if value not in NULL_VALUES:
                             value = 'encrypted'
                     col_info.append((
                         value,
                         counts.iat[i,-1],
-                        round(counts.iat[i,-1]/n_rows*100, 1)
+                        round(counts.iat[i,-1]/r*100, 1)
                     ))
                 except IndexError:
                     col_info.append(None)
             df.loc[len(df)] = col_info
         _l.info(f'completed table {table}')
-        return df.astype(output_cols, errors='ignore')
+        return df.fillna('').astype(output_cols, errors='ignore')
     except Exception as e:
         _l.error('Error: {}'.format(e))
         return

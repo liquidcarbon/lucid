@@ -181,7 +181,10 @@ def webtable(df, file, **kwargs):
 
     # for regular tables we also need <td>'s
     else:
-        trtd = re.split('</?tbody>\n', df.to_html(index=False))[1]
+        trtd = re.split('</?tbody>\n', df.to_html(
+            index=False,
+            escape=False,
+        ))[1]
         html = '\n'.join([thead, trtd, tfoot])
         jsonfile = None
 
