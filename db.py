@@ -34,10 +34,15 @@ SQL_STATUS_MSG = '{0} SQL response: {1[0]} rows x {1[1]} cols'
 #-----------------------------------------------------------------------------
 
 def sq(q, conn, log=True):
-    """Runs a simple SQL query."""
+    """Runs a simple SQL query.
+
+    :Returns:
+        pd.DataFrame with a new attr ``q`` to store the executed SQL query
+    """
 
     try:
         df = pd.read_sql(q, conn)
+        df.__setattr__('q', q)
         clean_column_names(df)
         if log:
             _l.info(SQL_STATUS_MSG.format(me(), df.shape))
