@@ -273,7 +273,8 @@ def schema_walk(conn, db, schema) -> pd.DataFrame:
         return
 
 
-def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
+def table_walk(conn, table, x=3,
+    comb=[], excl=[], encr=[], **kwargs) -> pd.DataFrame:
     """Returns an overview of the table.
 
     Includes COUNT...GROUP BY, cardinality, number of NULLs,
@@ -302,7 +303,7 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
         )
         cgb_columns = columns + comb
         for col in cgb_columns:
-            r, c, n = rcn(conn, table, col, log=None)
+            r, c, n = rcn(conn, table, col, log=None, **kwargs)
             col_info = [table, col, c, n]
             _l.debug(f'checking column(s) {col}: rcn = {r},{c},{n}')
 
@@ -315,7 +316,7 @@ def table_walk(conn, table, x=3, comb=[], excl=[], encr=[]) -> pd.DataFrame:
                 df.loc[len(df)] = col_info + ['excluded']*x
                 continue
             else:
-                counts = cgb(conn, table, col, log=False, limit=100)
+                counts = cgb(conn, table, col, log=False, limit=100, **kwargs)
                 if counts is None:
                     continue  # ignore entirely if COUNT...GROUP BY fails
 
