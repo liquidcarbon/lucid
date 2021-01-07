@@ -121,6 +121,25 @@ fill_hatch = {
 #-----------------------------------------------------------------------------
 
 class CDF:
+    """Plots a CDF of a series, with an optional histogram.
+    :Args:
+        :title: plot title
+
+    :Usage:
+        Plot CDF of a random distribution::
+
+            mu, sigma = 40, 15
+            x = pd.Series(np.random.normal(mu, sigma, 1000))
+            cdf = lucid.viz.CDF('test')
+            cdf.add_series(x, 'rand normal', 'green')
+            cdf.polish(
+                'random',
+                xrange=(10,70),
+                xticks=([20,40,60],[30,50]))
+            # cdf.polish('random')  # default range: 0 to 100
+            show(cdf.p)
+    """
+
     def __init__(self, title: str, **kwargs):
         self.p = figure(
             title=title,
