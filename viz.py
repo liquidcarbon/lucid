@@ -21,7 +21,9 @@ from bokeh.colors import RGB
 from bokeh.io import curdoc, output_file, show
 from bokeh.models import ColorBar, LinearColorMapper
 from bokeh.models import ColumnDataSource, HoverTool, Label, LabelSet
-from bokeh.models import BasicTicker, PrintfTickFormatter, NumeralTickFormatter
+from bokeh.models import BasicTicker, FixedTicker
+from bokeh.models import PrintfTickFormatter, NumeralTickFormatter
+from bokeh.models import Range1d
 from bokeh.plotting import figure
 from bokeh.themes import Theme
 
@@ -112,6 +114,77 @@ fill_hatch = {
         'x',
     ]
 }
+
+
+#-----------------------------------------------------------------------------
+# CDF Plot
+#-----------------------------------------------------------------------------
+
+class CDF:
+    def __init__(self, title: str, **kwargs):
+        self.p = figure(
+            title=title,
+            x_range=(0,102), y_range=(0,102),
+            width=500, height=400,
+            tools='', toolbar_location=None,
+            background_fill_color="#ebebeb",
+            **kwargs
+        )
+
+    def add_series(self, x: pd.Series, label, c, h=True):
+        """Add a Pandas series."""
+        N = len(x)
+        if N > 10000:
+            _x = x.sample(10000).sort_values()
+        else:
+            _x = x.sort_values()
+
+        if h:
+            hist, edges = np.histogram(_x, density=True, bins=20)
+            self.p.quad(
+                top=hist*500, bottom=0,
+                left=edges[:-1], right=edges[1:],
+                fill_color=c, line_color='white',
+                line_width=2, alpha=0.5
+            )
+
+        y = np.linspace(0, 100, len(_x))
+        self.p.line(
+            _x, y,
+            line_color=c, line_width=np.log10(N),
+            alpha=0.75,
+            legend_label=f"{label} (N={N})"
+        )
+        return
+
+    def polish(self, xlabel, xrange=None, xticks=None):
+        """Finishing touches on the plot."""
+        if xrange:
+            self.p.x_range=Range1d(xrange[0], xrange[1])
+        self.p.legend.location = 'top_left'
+        self.p.legend.background_fill_color = '#fefefe'
+        self.p.xaxis.axis_label = xlabel
+        self.p.yaxis.axis_label = '% of measurements'
+
+        tickers = FixedTicker(
+            ticks=[0, 25, 50, 75, 100],
+            minor_ticks=[i*5 for i in range(1,20)]
+        )
+        if xticks:
+            xtickers = FixedTicker(
+                ticks=xticks[0],
+                minor_ticks=xticks[1],
+            )
+        else:
+            xtickers = tickers
+
+        self.p.xaxis.ticker = xtickers
+        self.p.yaxis.ticker = tickers
+        self.p.grid.grid_line_color = "white"
+        self.p.grid.grid_line_width = 2
+        self.p.grid.minor_grid_line_color = 'gray'
+        self.p.grid.minor_grid_line_alpha = 0.2
+        return
 
 
 #-----------------------------------------------------------------------------
