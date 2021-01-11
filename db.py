@@ -120,38 +120,8 @@ def cd(conn, table, cols, **kwargs):
         return df.fillna(0).iat[0,0], df.iat[0,1]
 
 
-def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
-    """Returns COUNT(1)...GROUP BY on ``cols`` (one or more, in SQL syntax).
-
-    """
-
-    sql_params = {
-        'cols': cols,
-        'log': True,
-        'table': table,
-        'print': False,
-        'run': True,
-        'where': '1=1',
-        'limit': 9_999_999,
-    }
-    sql_params.update(**kwargs)
-
-    q = '''
-    SELECT
-        {cols},
-        COUNT(1) AS count
-    FROM {table}
-    WHERE {where}
-    GROUP BY {cols}
-    ORDER BY count DESC
-    LIMIT {limit}
-    '''.format(**sql_params)
-    df = sq(q, conn, log=sql_params['log'])
-    return df
-
-
-def cn(conn, table, cols, where='1=1', **kwargs) -> pd.DataFrame:
-    """Returns COUNT of NULLS in ``cols`` (one or more, in SQL syntax).
+def cdn(conn, table, cols, where='1=1', **kwargs) -> pd.DataFrame:
+    """Counts DISTINCT and NULL values in ``cols``.
 
     :Returns:
         pd.DataFrame
@@ -182,6 +152,67 @@ def cn(conn, table, cols, where='1=1', **kwargs) -> pd.DataFrame:
     return df
 
 
+def cgb(conn, table, cols, **kwargs) -> pd.DataFrame:
+    """Returns COUNT(1)...GROUP BY on ``cols`` (one or more, in SQL syntax).
+
+    """
+
+    sql_params = {
+        'cols': cols,
+        'log': True,
+        'table': table,
+        'print': False,
+        'run': True,
+        'where': '1=1',
+        'limit': 9_999_999,
+    }
+    sql_params.update(**kwargs)
+
+    q = '''
+    SELECT
+        {cols},
+        COUNT(1) AS count
+    FROM {table}
+    WHERE {where}
+    GROUP BY {cols}
+    ORDER BY count DESC
+    LIMIT {limit}
+    '''.format(**sql_params)
+    df = sq(q, conn, log=sql_params['log'])
+    return df
+
+
+def ct(conn, table, where='1=1', **kwargs) -> int:
+    """Returns COUNT of rows with a ``where`` clause.
+
+    :Returns:
+        int
+    """
+
+    sql_params = {
+        'log': True,
+        'table': table,
+        'print': False,
+        'run': True,
+        'where': where,
+        'limit': 9_999_999,
+    }
+    sql_params.update(**kwargs)
+
+    q = '''
+    SELECT
+        COUNT(*)
+    FROM {table}
+    WHERE {where}
+    '''.format(**sql_params)
+
+    df = sq(q, conn, log=sql_params['log'])
+    try:
+        return df.iat[0,0]
+    except:
+        return None
+
+
 def rcn(conn, table, cols, **kwargs) -> pd.DataFrame:
     """Returns number of Rows, Cardinality, and number of NULLs in ``cols``.
 
@@ -195,7 +226,7 @@ def rcn(conn, table, cols, **kwargs) -> pd.DataFrame:
     """
 
     r, c = cd(conn, table, cols, **kwargs)
-    nulls = cn(conn, table, cols, **kwargs)
+    nulls = cdn(conn, table, cols, **kwargs)
     if nulls.loc['count','all_null'] == nulls.loc['count','any_null']:
         n = nulls.iat[0,0]
     else:
