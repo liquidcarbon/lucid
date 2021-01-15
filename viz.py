@@ -28,8 +28,9 @@ from bokeh.plotting import figure
 from bokeh.themes import Theme
 
 # External imports
-from math import pi
+from math import log10, pi
 from pylab import cm
+from scipy.stats import ks_2samp
 import numpy as np
 import pandas as pd
 
@@ -65,7 +66,7 @@ theme1 = {'attrs': {
         'background_fill_alpha': 0.4,
     }
 }}
-curdoc().theme = Theme(json=theme1)
+# curdoc().theme = Theme(json=theme1)
 
 # fill/hatch sequence for up to 20 categories
 fill_hatch = {
@@ -141,28 +142,42 @@ class CDF:
     """
 
     def __init__(self, title: str, **kwargs):
+
+        self.series = []
         self.p = figure(
             title=title,
             x_range=(0,102), y_range=(0,102),
             width=500, height=400,
-            tools='', toolbar_location=None,
+            toolbar_location=None,
             background_fill_color="#ebebeb",
             **kwargs
         )
+        tt = [
+            ("value", "$x"),
+            ("%below value" , "$y"),
+        ]
+        self.p.add_tools(HoverTool(
+            tooltips=[
+                ( 'X: value', '$x{0.0}'),
+                ( 'Y: %(values < X)', '$y{0.0}'),
+            ],
+            mode='mouse'
+        ))
 
     def add_series(self, x: pd.Series, label, c, h=True):
         """Add a Pandas series."""
         N = len(x)
-        if N > 10000:
-            _x = x.sample(10000).sort_values()
+        if N > 1000:
+            _x = x.sample(1000, random_state=42).sort_values()
         else:
             _x = x.sort_values()
+        self.series.append(_x)
 
         if h:
-            hist, edges = np.histogram(_x, density=True, bins=20)
+            self.hist, self.edges = np.histogram(_x, density=True, bins=20)
             self.p.quad(
-                top=hist*500, bottom=0,
-                left=edges[:-1], right=edges[1:],
+                top=self.hist*500, bottom=0,
+                left=self.edges[:-1], right=self.edges[1:],
                 fill_color=c, line_color='white',
                 line_width=2, alpha=0.5
             )
@@ -174,13 +189,46 @@ class CDF:
             alpha=0.75,
             legend_label=f"{label} (N={N})"
         )
+        self.p.circle(
+            [_x.median()], [50],
+            color=c, size=2*np.log10(N),
+            alpha=1,
+            legend_label=f"{label} (N={N})"
+        )
         return
+
+    def ks(self):
+        if len(self.series) < 2:
+            _l.error('unable to calculate KS statistics: need 2 samples')
+            return
+        elif len(self.series) == 2:
+            kst = ks_2samp(self.series[0], self.series[1])
+            self.ksd = kst.statistic
+            try:
+                self.logp = log10(kst.pvalue)
+            except ValueError:
+                self.logp = 0
+
+            return
+        else:
+            _l.error('use Kruskal–Wallis test for more than 2 samples')
+            return
 
     def polish(self, xlabel, xrange=None, xticks=None):
         """Finishing touches on the plot."""
+
+        if hasattr(self, 'ksd'):
+            self.p.circle(
+                [0], [0],
+                color=None, size=0,
+                legend_label=f'KSD={self.ksd:.3f}, –log p={-self.logp:.1f}'
+            )
+
         if xrange:
             self.p.x_range=Range1d(xrange[0], xrange[1])
+        self.p.legend.label_text_font_size = '11px'
         self.p.legend.location = 'top_left'
+        self.p.legend.background_fill_alpha = 0.4
         self.p.legend.background_fill_color = '#fefefe'
         self.p.xaxis.axis_label = xlabel
         self.p.yaxis.axis_label = '% of measurements'
