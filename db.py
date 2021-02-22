@@ -338,6 +338,12 @@ def table_walk(conn, table, x=3,
             col_info = [table, col, c, n]
             _l.debug(f'checking column(s) {col}: rcn = {r},{c},{n}')
 
+            # if table is empty, stop the walk
+            if r == 0:
+                for col in cgb_columns:
+                    df.loc[len(df)] = colinfo + [None] * x
+                break
+
             # excluding big columns with high relative cardinality
             if type(c) == tuple:
                 rc = c[0]/r
@@ -366,6 +372,7 @@ def table_walk(conn, table, x=3,
                 except IndexError:
                     col_info.append(None)
             df.loc[len(df)] = col_info
+
         _l.info(f'completed table {table}')
         return df.fillna('').astype(output_cols, errors='ignore')
     except Exception as e:
