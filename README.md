@@ -26,9 +26,13 @@ import lucid
 
 ## Dataframes
 A bunch of functions I found myself writing more than once, including:
-* `lucid.df.ntop`: schema
+* `lucid.df.ntop`: like table walk, but for a dataframe (rows, cardinality, nulls)
 * `lucid.df.drop_empty_columns`: drop columns that are 100% NULL
 * `lucid.df.gresample`: combine GROUP BY and resample for time series data
+
+
+## Cloud Providers
+Some AWS and GCP wrappers.
 
 
 ## Viz
