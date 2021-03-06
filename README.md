@@ -12,6 +12,28 @@ sys.path.append('/path/to/lucid/')
 import lucid
 ```
 
+## Viz
+[Bokeh](https://docs.bokeh.org/en/latest/index.html) is my favorite plotting library.
+* `lucid.viz.TrueFalsePlot` for highlighting boolean relationships (see [example: is COVID incidence slowing or accelerating?](https://liquidcarbon.github.io/covid_weekly.html))
+* `lucid.viz.CDF` for cumulative density function plots, with Kolmogorov–Smirnov / Kruskal–Wallis stats
+```
+import numpy as np
+import pandas as pd
+from bokeh.io import show
+
+mu, sigma = 48, 20
+data1 = pd.Series(np.random.normal(mu, sigma, 1000))
+data2 = pd.Series(np.random.normal(52, 25,    2000))
+cdf = lucid.viz.CDF('CDF distributions with optional KS metrics')
+cdf.add_series(data1, 'rand normal 1', 'green')
+cdf.add_series(data2, 'rand normal 2', 'red')
+cdf.ks()
+cdf.polish(xlabel='random')  # default range: 0 to 100
+show(cdf.p)
+```
+![lucid CDF](https://user-images.githubusercontent.com/47034358/110200136-6a2d1e00-7e2a-11eb-885e-f20528f3b559.png)
+
+
 ## Databases
 * wrappers for `pd.read_sql`:
     * tell you `df.shape` and SQL errors without 99 lines of traceback
@@ -31,15 +53,13 @@ A bunch of functions I found myself writing more than once, including:
 * `lucid.df.gresample`: combine GROUP BY and resample for time series data
 
 
+## IO
+Writing [interactive jQuery web tables](https://liquidcarbon.github.io/covid_weekly.html) from pandas.  Writing multi-tab Excel files from pandas.  Working with streams.  
+
+
 ## Cloud Providers
 Some AWS and GCP wrappers.
 
-
-## Viz
-I like Bokeh.
-* `lucid.viz.TrueFalsePlot` for highlighting boolean relationships (see [example: is COVID incidence slowing or accelerating?](https://liquidcarbon.github.io/covid_weekly.html))
-* `lucid.viz.CDF` for cumulative density function plots, with Kolmogorov–Smirnov / Kruskal–Wallis stats
-![lucid CDF](https://user-images.githubusercontent.com/47034358/110200136-6a2d1e00-7e2a-11eb-885e-f20528f3b559.png)
 
 
 ## Logging
