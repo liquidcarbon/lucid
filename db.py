@@ -235,7 +235,7 @@ def rcn(conn, table, cols, **kwargs) -> pd.DataFrame:
     return r, c, n
 
 
-def info_schema(conn, db, **kwargs) -> pd.DataFrame:
+def get_info_schema(conn, info_schema, **kwargs) -> pd.DataFrame:
     """Retrieves information schema for a database.
 
     :Args:
@@ -247,7 +247,7 @@ def info_schema(conn, db, **kwargs) -> pd.DataFrame:
 
     sql_params = {
         'cols': '*',
-        'db': db,
+        'info_schema': info_schema,
         'print': False,
         'run': True,
         'where': '1=1',
@@ -255,7 +255,7 @@ def info_schema(conn, db, **kwargs) -> pd.DataFrame:
     sql_params.update(**kwargs)
 
     q = '''
-    SELECT {cols} FROM {db}.INFORMATION_SCHEMA.tables WHERE {where}
+    SELECT {cols} FROM {info_schema} WHERE {where}
     '''.format(**sql_params)
 
     if not runquery(q, **sql_params):
@@ -272,7 +272,7 @@ def info_schema(conn, db, **kwargs) -> pd.DataFrame:
         return
 
 
-def schema_walk(conn, db, schema) -> pd.DataFrame:
+def schema_walk(conn, info_schema, schema) -> pd.DataFrame:
     """Returns row and column counts for every table in schema."""
 
     output_cols = {
@@ -283,9 +283,9 @@ def schema_walk(conn, db, schema) -> pd.DataFrame:
     }
     df = pd.DataFrame(columns=output_cols.keys())
     try:
-        tables = info_schema(
+        tables = get_info_schema(
             conn,
-            db,
+            info_schema='SVV_TABLES',
             cols = 'table_name',
             where = f"table_schema = '{schema}'",
         )
@@ -341,7 +341,7 @@ def table_walk(conn, table, x=3,
             # if table is empty, stop the walk
             if r == 0:
                 for col in cgb_columns:
-                    df.loc[len(df)] = colinfo + [None] * x
+                    df.loc[len(df)] = col_info + [None] * x
                 break
 
             # excluding big columns with high relative cardinality
@@ -380,20 +380,20 @@ def table_walk(conn, table, x=3,
         raise(e)
         return
 
-    
+
 #-----------------------------------------------------------------------------
 # Writing SQL
 #-----------------------------------------------------------------------------
 
 def execute(sql, connections: list):
     """Safely executes a SQL command (as opposed to a query).
-    
+
     :Args:
         :sql: SQL command
         :connections: list of SQL connections
     :Usage:
         To execute in multiple databases::
-            
+
             sql = 'GRANT SELECT ON test_schema.test123 TO GROUP devs'
             execute(sql, [conn1, conn2])
     """
@@ -408,28 +408,28 @@ def execute(sql, connections: list):
 
 def tosql(df: pd.DataFrame, table) -> str:
     """Replaces df.to_sql() when it doesn't work (e.g. with redshift_connector).
-    
+
     :Args:
         :df: Pandas Dataframe to be written to SQL
         :table: destination table name
     :Usage:
         It is the user's responsibility to ensure that the table DDL matches the df dtypes::
-        
+
             insert_into = tosql(df, 'test_schema.test123')
             execute(insert_into, [conn])
     """
-                           
+
     cols = ','.join([str(c) for c in df.columns.tolist()])
     insert_into = f'''
     INSERT INTO {table}
         ({cols})
     VALUES'''
-    
+
     for i,r in df.iterrows():
         row = str(tuple(r)).replace('None','NULL').replace("\"","\'") # for lines with quotes
         insert_into += (f'\n\t{row},')
     insert_into = insert_into[:-1]
-    
+
     return insert_into
 
 

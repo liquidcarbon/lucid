@@ -84,8 +84,8 @@ df = agg_by_state(read_data(URL))
 acceleration = prep_truefalse_plot(df)
 tfp = lucid.viz.TrueFalsePlot(
     acceleration,
-    plot_height=750,
-    plot_width=800,
+    plot_height=720,
+    plot_width=960,
     title='True-False Plot: is COVID case count accelerating (red) or slowing (green)?',
     tooltips=[('','@cols @ @rows: +@N cases')],
     y_range=list(df.loc[max(df.index)].T.sort_values().index)

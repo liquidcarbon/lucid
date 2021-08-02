@@ -294,7 +294,7 @@ class TrueFalsePlot:
         p.xaxis.major_label_standoff = 0
         p.xaxis.major_label_text_font_size = '12px'
         p.yaxis.major_label_text_font_size = '12px'
-        p.xaxis.major_label_orientation = 3.14 / 3
+        p.xaxis.major_label_orientation = 3.14 / 2.5
 
         p.rect(
             source=df,

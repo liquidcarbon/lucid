@@ -48,7 +48,7 @@ WEBCONF = MattrD({
     }
 })
 
-HOMEDIR=os.environ['HOME']
+HOMEDIR=os.path.expanduser('~')
 WEBPORT = 8080
 WEBSERVER = f'{IP}:{WEBPORT}/'
 WEBTABLES_URL_JUPYTER = True  # display URL of published webtables in Jupyter
