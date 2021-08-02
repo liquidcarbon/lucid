@@ -100,6 +100,6 @@ lucid.io.webtable(
     title='COVID Weekly',
     scripts=scr,
     sort_col="1, 'asc'",
-    footer=f'<br>Last Update: {lucid.util.tnow(fmt="%F %T")}',
+    footer=f'<br>Last Update: {lucid.util.tnow(fmt="%F %T")}.  Made with <a href="https://github.com/liquidcarbon/lucid">lucid</a> &ndash; python package for doing cool stuff with databases, dataframes, and cloud providers.',
     show_url=False,
 )

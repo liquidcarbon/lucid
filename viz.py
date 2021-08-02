@@ -48,7 +48,7 @@ theme1 = {'attrs': {
     },
 
     'Title': {
-        'text_font_size': '16pt',
+        'text_font_size': '18pt',
         'text_font': 'Segoe UI'
     },
 
