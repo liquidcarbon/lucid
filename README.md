@@ -14,7 +14,7 @@ import lucid
 
 ## Viz
 [Bokeh](https://docs.bokeh.org/en/latest/index.html) is my favorite plotting library.
-* `lucid.viz.TrueFalsePlot` for highlighting boolean relationships (see [example: is COVID incidence slowing or accelerating?](https://liquidcarbon.github.io/covid_weekly.html))
+* `lucid.viz.TrueFalsePlot` for highlighting boolean relationships (see [example: is COVID incidence slowing or accelerating?](https://covid91.s3.amazonaws.com/covid_weekly_20210802.html))
 * `lucid.viz.CDF` for cumulative density function plots, with Kolmogorov–Smirnov / Kruskal–Wallis stats
 ```
 import numpy as np
